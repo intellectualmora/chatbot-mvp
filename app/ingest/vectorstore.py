@@ -1,5 +1,7 @@
 import logging
 import os
+import time
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
@@ -34,7 +36,7 @@ def build_vectorstore(docs, user_id: str = None,is_public: bool = False, base_di
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(docs)
     # 构建向量库并持久化
-    embeddings = DashScopeEmbeddings(model="text-embedding-v1")
+    embeddings = DashScopeEmbeddings(model="text-embedding-v4")
     vectorstore = Chroma(
         embedding_function=embeddings,
         persist_directory=persist_dir
@@ -42,6 +44,7 @@ def build_vectorstore(docs, user_id: str = None,is_public: bool = False, base_di
 
     batch_size = 50
     max_workers = 10
+    failed_batches = []
     # 切分 batch
     batches = [chunks[i:i + batch_size] for i in range(0, len(chunks), batch_size)]
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -57,6 +60,23 @@ def build_vectorstore(docs, user_id: str = None,is_public: bool = False, base_di
                 logging.info(f"完成 {i + 1}/{len(batches)} 批")
             except Exception as e:
                 logging.info(f"批次 {i + 1} 失败: {e}")
+                failed_batches.append(batch)
+
+    max_retries = 3
+    for retry in range(max_retries):
+        if not failed_batches:
+            break
+        logging.info(f"开始第 {retry+1} 次重试, 剩余 {len(failed_batches)} 批")
+        new_failed = []
+        for i, batch in enumerate(failed_batches):
+            try:
+                vectorstore.add_documents(batch)
+                logging.info(f"重试成功: {i+1}/{len(failed_batches)} 批")
+            except Exception as e:
+                logging.warning(f"重试失败: {i+1}/{len(failed_batches)} 批, 错误: {e}")
+                new_failed.append(batch)
+        failed_batches = new_failed
+
     return vectorstore
 
 def get_vectorstore(user_id: str = None, base_dir: str = "vectorstores") -> Chroma:
@@ -65,7 +85,7 @@ def get_vectorstore(user_id: str = None, base_dir: str = "vectorstores") -> Chro
     - user_id=None: 加载公共库
     - user_id=xxx: 优先加载用户私有库，若不存在则回退到公共库
     """
-    embeddings = DashScopeEmbeddings(model="text-embedding-v1")
+    embeddings = DashScopeEmbeddings(model="text-embedding-v4")
 
     if user_id:
         private_dir = os.path.join(base_dir, "private", str(user_id))

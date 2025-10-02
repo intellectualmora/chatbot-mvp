@@ -1,3 +1,5 @@
+import sys
+
 from dotenv import load_dotenv
 load_dotenv()
 import argparse
@@ -50,7 +52,6 @@ def build_index(user_id: str = None,is_public:bool=False):
 
     build_vectorstore(all_docs,is_public=is_public)
     logger.info("向量索引已构建完成！")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
