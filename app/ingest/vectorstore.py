@@ -4,6 +4,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
 from langsmith import traceable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 @traceable(name="build_vectorstore")
 def build_vectorstore(docs, user_id: str = None,is_public: bool = False, base_dir="vectorstores"):
@@ -32,14 +33,30 @@ def build_vectorstore(docs, user_id: str = None,is_public: bool = False, base_di
     # 文本切分
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(docs)
-
     # 构建向量库并持久化
     embeddings = DashScopeEmbeddings(model="text-embedding-v1")
-    vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
+    vectorstore = Chroma(
+        embedding_function=embeddings,
         persist_directory=persist_dir
     )
+
+    batch_size = 50
+    max_workers = 10
+    # 切分 batch
+    batches = [chunks[i:i + batch_size] for i in range(0, len(chunks), batch_size)]
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for batch in batches:
+            futures.append(executor.submit(
+                lambda b: vectorstore.add_documents(b), batch
+            ))
+
+        for i, future in enumerate(as_completed(futures)):
+            try:
+                future.result()
+                logging.info(f"完成 {i + 1}/{len(batches)} 批")
+            except Exception as e:
+                logging.info(f"批次 {i + 1} 失败: {e}")
     return vectorstore
 
 def get_vectorstore(user_id: str = None, base_dir: str = "vectorstores") -> Chroma:

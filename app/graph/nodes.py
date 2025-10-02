@@ -47,7 +47,7 @@ def generate_node(state: Dict) -> Dict:
         MessagesPlaceholder(variable_name="messages"),
     ])
 
-    llm = ChatTongyi(model="qwen-turbo")
+    llm = ChatTongyi(model="qwen3-max")
     chain = prompt | llm
 
     ai_msg = chain.invoke({"messages": messages})   # 已是 AIMessage

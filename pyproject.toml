@@ -20,6 +20,7 @@ dependencies = [
     "langgraph",
     "python-multipart",
     "chromadb",
-    "langchain_chroma"
+    "langchain_chroma",
+    "chardet"
 
 ]
