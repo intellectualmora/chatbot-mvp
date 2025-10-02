@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    container_name: chatbot-app
+    ports:
+      - "7777:7777"
+    environment:
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - VECTOR_DB_HOST=chroma
+      - VECTOR_DB_PORT=8000
+    volumes:
+      - ./docs:/app/docs   # 映射文档目录，支持热更新
+    depends_on:
+      - chroma
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/.chroma
+
+volumes:
+  chroma_data:
